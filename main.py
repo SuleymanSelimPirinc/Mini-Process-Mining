@@ -296,3 +296,77 @@ else:
 
 st.sidebar.markdown("---")
 st.sidebar.info("Mini Süreç Madenciliği Uygulaması v2.0")
+
+from pyngrok import ngrok, conf
+import os
+import getpass # Colab secrets için
+from google.colab import userdata # userdata modülünü doğrudan içe aktar
+
+# --- ngrok Authtoken Ayarı ---
+# TAVSİYE EDİLEN YÖNTEM: Colab Secrets kullanın
+# 1. Sol menüden anahtar (🔑) ikonuna tıklayın.
+# 2. "Add a new secret" deyin.
+# 3. Name: NGROK_AUTH_TOKEN, Value: ngrok.com'dan aldığınız token.
+# 4. "Notebook access" işaretli olsun.
+
+NGROK_AUTH_TOKEN = None # Token'ı başlangıçta None olarak ayarla
+
+try:
+    # Colab Secrets'tan token'ı almayı dene
+    # TimeoutException'ı yakalayabilmek için try bloğunu userdata.get etrafına sarıyoruz
+    NGROK_AUTH_TOKEN = userdata.get('NGROK_AUTH_TOKEN')
+    if NGROK_AUTH_TOKEN is None:
+         # get() metodu None döndürebilir ama Exception fırlatmadıysa
+        print("NGROK_AUTH_TOKEN Colab Secrets'ta ayarlanmamış veya boş.")
+except Exception as e: # TimeoutException veya başka bir hata yakala
+    print(f"Colab Secrets'tan NGROK_AUTH_TOKEN alınırken hata oluştu: {e}")
+    print("Colab Secrets'a erişilemiyor veya token ayarlanmamış.")
+
+# Eğer token hala None ise manuel girişi dene veya hata ver
+if NGROK_AUTH_TOKEN is None:
+    print("NGROK_AUTH_TOKEN Colab Secrets'ta bulunamadı veya alınamadı.")
+    print("Lütfen ngrok authtoken'ınızı aşağıdaki değişkene manuel olarak girin.")
+    # Alternatif: Token'ı manuel olarak girmek için aşağıdaki satırı kullanın (daha az güvenli)
+    NGROK_AUTH_TOKEN = "BURAYA_NGROK_AUTHTOKENINIZI_YAPIŞTIRIN" # <--- TOKEN'INIZI BURAYA YAPIŞTIRIN
+
+    if NGROK_AUTH_TOKEN == "BURAYA_NGROK_AUTHTOKENINIZI_YAPIŞTIRIN":
+         print("UYARI: ngrok authtoken hala manuel olarak girilmemiş.")
+         print("Lütfen https://dashboard.ngrok.com/get-started/your-authtoken adresinden token'ınızı alın ve 'BURAYA_NGROK_AUTHTOKENINIZI_YAPIŞTIRIN' yerine yapıştırın veya Colab Secrets'a ekleyin.")
+         raise ValueError("Ngrok authtoken gerekli.")
+
+
+if NGROK_AUTH_TOKEN and NGROK_AUTH_TOKEN != "BURAYA_NGROK_AUTHTOKENINIZI_YAPIŞTIRIN":
+    try:
+        ngrok.set_auth_token(NGROK_AUTH_TOKEN)
+        print("Ngrok authtoken başarıyla ayarlandı.")
+    except Exception as e:
+        print(f"Ngrok authtoken ayarlanırken hata oluştu: {e}")
+        raise
+else:
+     # Bu durum yukarıdaki if bloğunda yakalanır, burası aslında gerekmeyebilir
+     # ama güvenlik için bırakıldı.
+    print("UYARI: ngrok authtoken sağlanmadı veya geçersiz.")
+    print("Lütfen ngrok authtoken'ınızı girin veya Colab Secrets'a ekleyin.")
+    raise ValueError("Ngrok authtoken gerekli.")
+
+
+# ngrok tünelini başlat
+# Streamlit varsayılan olarak 8501 portunda çalışır
+try:
+    # Eğer zaten bir tünel açıksa kapat
+    ngrok.kill()
+    public_url = ngrok.connect(8501).public_url
+    print(f"Streamlit uygulamanız burada çalışıyor: {public_url}")
+
+    # Streamlit uygulamasını arka planda başlat
+    # Bu komut bloklanabilir, Jupyter veya Colab'de ayrı bir işlemde çalıştırılmalı
+    # ! nohup streamlit run app.py --server.port 8501 --server.headless true --server.enableCORS false &> streamlit.log &
+    # Daha basit bir yaklaşım (Colab için uygun):
+    !streamlit run app.py --server.port 8501 --server.headless true --server.enableCORS false
+except Exception as e:
+    print(f"Ngrok tüneli başlatılırken veya Streamlit çalıştırılırken hata oluştu: {e}")
+    print("Olası Nedenler:")
+    print("- ngrok authtoken yanlış veya geçersiz olabilir.")
+    print("- Colab ortamında ağ kısıtlamaları olabilir.")
+    print("- app.py dosyanızda bir sorun olabilir (önceki hücrelerde hata olup olmadığını kontrol edin).")
+    print("- Port 8501 başka bir işlem tarafından kullanılıyor olabilir.")
